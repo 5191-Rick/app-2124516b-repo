@@ -1,0 +1,92 @@
+pipeline {
+    agent any
+
+    stages {
+
+        stage('stg1-2124516b') {
+            steps {
+                echo "stg1_2124516b: Preparation check passes"
+            }
+        }
+
+        stage('stg2-2124516b') {
+            steps {
+                script {
+                    sh 'curl -Is http://localhost:33100 | head -n 1 > /tmp/testsvr-result-file'
+                    def result = sh(script: 'cat /tmp/testsvr-result-file', returnStdout: true).trim()
+
+                    if (result.contains("200 OK")) {
+                        echo "stg2_2124516b: testsvr’s website is running"
+                    } else {
+                        error("stg2_2124516b: testsvr’s website is down")
+                    }
+                }
+
+                input message: "Proceed to update testsvr server?"
+            }
+        }
+
+        stage('stg3-2124516b') {
+            steps {
+                sh '''
+                docker rmi -f testsvr_image || true
+                docker commit testsvr_2124516b testsvr_image
+                bolt script run opr_script_2124516b --targets 192.168.150.210 --user root --password docker
+                '''
+                echo "stg3_2124516b: testsvr is backup and updated"
+            }
+        }
+
+        stage('stg4-2124516b') {
+            steps {
+                script {
+                    sh 'curl -Is http://localhost:33100 | head -n 1 > /tmp/testsvr-result-file'
+                    def result = sh(script: 'cat /tmp/testsvr-result-file', returnStdout: true).trim()
+
+                    if (result.contains("200 OK")) {
+                        echo "stg4_2124516b: testsvr’s website is running after update"
+                    } else {
+                        error("stg4_2124516b: testsvr’s website is down")
+                    }
+                }
+
+                input message: "Proceed to update appsvr server?"
+            }
+        }
+
+        stage('stg5-2124516b') {
+            steps {
+                sh '''
+                docker rmi -f appsvr_image || true
+                docker commit appsvr_2124516b appsvr_image
+                bolt script run opr_script_2124516b --targets 192.168.160.220 --user root --password docker 
+                '''
+                echo "stg5_2124516b: appsvr web server is backup and updated"
+            }
+        }
+
+        stage('stg6-2124516b') {
+            steps {
+                script {
+                    sh 'curl -Is http://localhost:33200 | head -n 1 > /tmp/appsvr-result-file'
+                    def result = sh(script: 'cat /tmp/appsvr-result-file', returnStdout: true).trim()
+
+                    if (result.contains("200 OK")) {
+                        echo "stg6_2124516b: appsvr website is operational"
+                    } else {
+                        def choice = input message: 'Appsvr failed. Choose action:',
+                                parameters: [
+                                    choice(name: 'ACTION', choices: 'Trigger roll back\nTroubleshooting')
+                                ]
+
+                        if (choice == "Trigger roll back") {
+                            echo "stg6_2124516b: Production website is rolling back"
+                        } else {
+                            echo "stg6_2124516b: Troubleshooting of Production website starts"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
