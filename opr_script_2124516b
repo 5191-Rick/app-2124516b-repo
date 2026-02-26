@@ -1,9 +1,12 @@
 #!/bin/bash
 
 puppet resource package apache2 ensure=installed 
+puppet resource package git ensure=installed
 puppet resource service apache2 ensure=running enable=true
+
 echo "Clean work directory" 
 
+puppet resource file /tmp/work ensure=directory
 puppet resource file /tmp/work/2124516b ensure=absent force=true
 puppet resource file /tmp/work/2124516b ensure=directory
 
